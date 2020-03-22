@@ -43,3 +43,11 @@ func (m *Modify) Cf() string {
 	}
 	return ""
 }
+
+func (m *Modify) Value() []byte {
+	if putValue, ok := m.Data.(Put); ok {
+		return putValue.Value
+	}
+
+	return nil
+}
