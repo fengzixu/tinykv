@@ -26,14 +26,6 @@ func (m *Modify) Key() []byte {
 	return nil
 }
 
-func (m *Modify) Value() []byte {
-	if putData, ok := m.Data.(Put); ok {
-		return putData.Value
-	}
-
-	return nil
-}
-
 func (m *Modify) Cf() string {
 	switch m.Data.(type) {
 	case Put:

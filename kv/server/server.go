@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pingcap-incubator/tinykv/scheduler/pkg/tsoutil"
-
-	"github.com/Connor1996/badger"
 	"github.com/pingcap-incubator/tinykv/kv/storage"
 	"github.com/pingcap-incubator/tinykv/kv/storage/raft_storage"
 	"github.com/pingcap-incubator/tinykv/kv/transaction/latches"
@@ -44,22 +41,18 @@ func (server *Server) RawGet(_ context.Context, req *kvrpcpb.RawGetRequest) (*kv
 	}
 
 	defer reader.Close()
+	resp := &kvrpcpb.RawGetResponse{}
 	value, err := reader.GetCF(req.GetCf(), req.GetKey())
 	if err != nil {
-		resp := &kvrpcpb.RawGetResponse{
-			Error: err.Error(),
-		}
-
-		if badger.ErrKeyNotFound.Error() == err.Error() {
-			resp.NotFound = true
-		}
-
-		return resp, nil
+		resp.Error = err.Error()
 	}
 
-	return &kvrpcpb.RawGetResponse{
-		Value: value,
-	}, nil
+	if value == nil {
+		resp.NotFound = true
+	}
+
+	resp.Value = value
+	return resp, nil
 }
 
 func (server *Server) RawPut(_ context.Context, req *kvrpcpb.RawPutRequest) (*kvrpcpb.RawPutResponse, error) {
