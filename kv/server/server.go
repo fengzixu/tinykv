@@ -62,7 +62,7 @@ func (server *Server) RawGet(_ context.Context, req *kvrpcpb.RawGetRequest) (*kv
 func (server *Server) RawPut(_ context.Context, req *kvrpcpb.RawPutRequest) (*kvrpcpb.RawPutResponse, error) {
 	resp := &kvrpcpb.RawPutResponse{}
 	if err := server.storage.Write(req.GetContext(), []storage.Modify{
-		storage.Modify{
+		{
 			Data: storage.Put{
 				Key:   req.GetKey(),
 				Value: req.GetValue(),
@@ -80,7 +80,7 @@ func (server *Server) RawPut(_ context.Context, req *kvrpcpb.RawPutRequest) (*kv
 func (server *Server) RawDelete(_ context.Context, req *kvrpcpb.RawDeleteRequest) (*kvrpcpb.RawDeleteResponse, error) {
 	resp := &kvrpcpb.RawDeleteResponse{}
 	if err := server.storage.Write(req.GetContext(), []storage.Modify{
-		storage.Modify{
+		{
 			Data: storage.Delete{
 				Key: req.GetKey(),
 				Cf:  req.GetCf(),
