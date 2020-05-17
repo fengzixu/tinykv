@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 
 	"github.com/pingcap-incubator/tinykv/kv/coprocessor"
 	"github.com/pingcap-incubator/tinykv/kv/storage"
@@ -34,26 +35,103 @@ func NewServer(storage storage.Storage) *Server {
 }
 
 // The below functions are Server's gRPC API (implements TinyKvServer).
-
 // Raw API.
 func (server *Server) RawGet(_ context.Context, req *kvrpcpb.RawGetRequest) (*kvrpcpb.RawGetResponse, error) {
-	// Your Code Here (1).
-	return nil, nil
+	reader, err := server.storage.Reader(req.GetContext())
+	if err != nil {
+		return &kvrpcpb.RawGetResponse{
+			Error: err.Error(),
+		}, nil
+	}
+
+	defer reader.Close()
+	resp := &kvrpcpb.RawGetResponse{}
+	value, err := reader.GetCF(req.GetCf(), req.GetKey())
+	if err != nil {
+		resp.Error = err.Error()
+	}
+
+	if value == nil {
+		resp.NotFound = true
+	}
+
+	resp.Value = value
+	return resp, nil
 }
 
 func (server *Server) RawPut(_ context.Context, req *kvrpcpb.RawPutRequest) (*kvrpcpb.RawPutResponse, error) {
-	// Your Code Here (1).
-	return nil, nil
+	resp := &kvrpcpb.RawPutResponse{}
+	if err := server.storage.Write(req.GetContext(), []storage.Modify{
+		storage.Modify{
+			Data: storage.Put{
+				Key:   req.GetKey(),
+				Value: req.GetValue(),
+				Cf:    req.GetCf(),
+			},
+		},
+	}); err != nil {
+		resp.Error = err.Error()
+		return resp, nil
+	}
+
+	return resp, nil
 }
 
 func (server *Server) RawDelete(_ context.Context, req *kvrpcpb.RawDeleteRequest) (*kvrpcpb.RawDeleteResponse, error) {
-	// Your Code Here (1).
-	return nil, nil
+	resp := &kvrpcpb.RawDeleteResponse{}
+	if err := server.storage.Write(req.GetContext(), []storage.Modify{
+		storage.Modify{
+			Data: storage.Delete{
+				Key: req.GetKey(),
+				Cf:  req.GetCf(),
+			},
+		},
+	}); err != nil {
+		resp.Error = err.Error()
+		return resp, nil
+	}
+
+	return resp, nil
 }
 
 func (server *Server) RawScan(_ context.Context, req *kvrpcpb.RawScanRequest) (*kvrpcpb.RawScanResponse, error) {
-	// Your Code Here (1).
-	return nil, nil
+	resp := &kvrpcpb.RawScanResponse{}
+	if req.GetLimit() == 0 {
+		resp.Error = errors.New("Invalid RawScan Request. Request or Limit may is null").Error()
+		return resp, nil
+	}
+
+	reader, err := server.storage.Reader(req.GetContext())
+	if err != nil {
+		resp.Error = err.Error()
+		return resp, nil
+	}
+
+	iterator := reader.IterCF(req.GetCf())
+	defer iterator.Close()
+	iterator.Seek(req.GetStartKey())
+	keyPairs := make([]*kvrpcpb.KvPair, 0)
+	var count uint32
+	for count = 1; count <= req.GetLimit() && iterator.Valid(); {
+		item := iterator.Item()
+		value, err := item.Value()
+		if err != nil {
+			resp.Error = err.Error()
+			return resp, nil
+		}
+
+		keyPairs = append(keyPairs, &kvrpcpb.KvPair{
+			Key:   item.Key(),
+			Value: value,
+		})
+
+		count++
+		iterator.Next()
+	}
+
+	return &kvrpcpb.RawScanResponse{
+		Kvs: keyPairs,
+	}, nil
 }
 
 // Raft commands (tinykv <-> tinykv)
